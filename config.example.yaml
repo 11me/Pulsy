@@ -1,0 +1,11 @@
+monitors:
+- url: https://www.example.com
+  interval: 30s
+  retry: 3
+  timeout: 10s
+notifiers:
+- name: telegram
+  options:
+    token: YOUR_TELEGRAM_BOT_TOKEN
+    chat_id: YOUR_TELEGRAM_CHAT_ID
+
