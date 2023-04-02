@@ -64,11 +64,13 @@ monitors:
     retry: 5
 
 notifiers:
-  - name: "Telegram"
-    type: "telegram"
+  - name: "telegram"
     options:
       token: "YOUR_TELEGRAM_BOT_TOKEN"
       chat_id: "YOUR_TELEGRAM_CHAT_ID"
+  - name: "discord"
+    options:
+      webhook: "YOUR_DISCORD_WEBHOOK"
 ```
 
 
