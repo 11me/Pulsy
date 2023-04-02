@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/11me/pulsy/notifier"
+	"github.com/11me/pulsy/message"
 )
 
 type state int
@@ -35,13 +36,6 @@ func (s state) String() string {
 	}
 }
 
-type MessageFormat struct {
-	Timestamp string        `json:"@timestamp"`
-	Status    string        `json:"status"`
-	Latency   time.Duration `json:"latency_ms"`
-	URL       string        `json:"url"`
-	Message   string        `json:"message"`
-}
 
 type Monitor struct {
 	URL      string
@@ -98,20 +92,27 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 		tElapsed := time.Since(tStart)
 
 		lastState := m.state
+        // if in the last state we encounter an error
+        // do not bombard the service with requests
+        // give it a breath
+        if lastState == ERROR || lastState == PENDING {
+            time.Sleep(time.Second * 3)
+        }
+
 		if err != nil {
 			retryCounter++
-			message := &MessageFormat{
+			msg := message.Message{
 				Timestamp: tStart.Format(time.RFC3339),
 				Status:    ERROR.String(),
 				Latency:   time.Duration(tElapsed.Milliseconds()),
 				URL:       m.URL,
 				Message:   err.Error(),
 			}
-			messageBytes, _ := json.Marshal(message)
+			messageBytes, _ := json.Marshal(&msg)
 			if retryCounter > m.Retry {
 				m.state = ERROR
 				if lastState != ERROR {
-					w.callNotifiers(messageBytes)
+					w.callNotifiers(msg)
 				}
 			} else {
 				m.state = PENDING
@@ -123,18 +124,18 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 
 		if res.StatusCode != http.StatusOK {
 			retryCounter++
-			message := &MessageFormat{
+			msg := message.Message{
 				Timestamp: tStart.Format(time.RFC3339),
 				Status:    ERROR.String(),
 				Latency:   time.Duration(tElapsed.Milliseconds()),
 				URL:       m.URL,
 				Message:   res.Status,
 			}
-			messageBytes, _ := json.Marshal(message)
+			messageBytes, _ := json.Marshal(&msg)
 			if retryCounter > m.Retry {
 				m.state = ERROR
 				if lastState != ERROR {
-					w.callNotifiers(messageBytes)
+					w.callNotifiers(msg)
 				}
 			} else {
 				m.state = PENDING
@@ -144,18 +145,18 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 		}
 		retryCounter = 0
 		m.state = OK
-		message := &MessageFormat{
+		msg := message.Message{
 			Timestamp: tStart.Format(time.RFC3339),
 			Status:    OK.String(),
 			Latency:   time.Duration(tElapsed.Milliseconds()),
 			URL:       m.URL,
 			Message:   res.Status,
 		}
-		messageBytes, _ := json.Marshal(message)
+		msgBytes, _ := json.Marshal(&msg)
 		if lastState == ERROR {
-			w.callNotifiers(messageBytes)
+			w.callNotifiers(msg)
 		}
-		w.callWriters(messageBytes)
+		w.callWriters(msgBytes)
 
 		<-time.Tick(m.Interval)
 	}
@@ -178,9 +179,9 @@ func (w *Watcher) listenForInterrupt() {
 	w.Stop()
 }
 
-func (w *Watcher) callNotifiers(message []byte) {
+func (w *Watcher) callNotifiers(m message.Message) {
 	for _, notifier := range w.Notifiers {
-		if err := notifier.Notify(message); err != nil {
+		if err := notifier.Notify(m); err != nil {
 			fmt.Fprintf(os.Stderr, "[NOTIFICATION FAILURE]: %s", err.Error())
 		}
 	}

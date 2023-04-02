@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/11me/pulsy/message"
+	"github.com/11me/pulsy/notifier/discord"
 	"github.com/11me/pulsy/notifier/telegram"
 )
 
+
 type Notifier interface {
-	Notify(message []byte) error
+	Notify(m message.Message) error
 }
 type DefaultNotifier struct{}
 
-func (n *DefaultNotifier) Notify(message []byte) error {
-    fmt.Fprintf(os.Stderr, "[DEFAULT NOTIFIER]: %s", message)
+func (n *DefaultNotifier) Notify(m message.Message) error {
+    fmt.Fprintf(os.Stderr, "[DEFAULT NOTIFIER]: %v", m)
 	return nil
 }
 
@@ -26,6 +29,12 @@ func MakeNotifierFactory(name string) NotifierFactory {
             return &telegram.TelegramNotifier{
                 ChatID: options["chat_id"].(string),
                 Token: options["token"].(string),
+            }
+        }
+    case "discord":
+        return func(options map[string]interface{}) Notifier {
+            return &discord.DiscordNotifier{
+                Webhook: options["webhook"].(string),
             }
         }
     default:

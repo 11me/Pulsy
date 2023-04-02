@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/11me/pulsy/message"
 )
 
 const TELEGRAM_API = "https://api.telegram.org/bot"
@@ -20,11 +22,12 @@ type telegramPayload struct {
 	Text   string `json:"text"`
 }
 
-func (t *TelegramNotifier) Notify(message []byte) error {
+func (t *TelegramNotifier) Notify(m message.Message) error {
     telegramApi := TELEGRAM_API + t.Token + "/sendMessage"
+    messageBytes, _ := json.Marshal(m)
     payload := telegramPayload{
         ChatID: t.ChatID,
-        Text: string(message),
+        Text: string(messageBytes),
     }
     b, _ := json.Marshal(&payload)
     bReader := bytes.NewReader(b)
@@ -34,11 +37,11 @@ func (t *TelegramNotifier) Notify(message []byte) error {
         return err
     }
     if res.StatusCode != http.StatusOK {
-        msgBytes, err := io.ReadAll(res.Body)
+        bodyBytes, err := io.ReadAll(res.Body)
         if err != nil {
             return err
         }
-        return fmt.Errorf("failed to send notification %s", string(msgBytes))
+        return fmt.Errorf("failed to send notification %s", string(bodyBytes))
     }
     
 	return nil
