@@ -17,14 +17,14 @@ func main() {
 	monitors := config.LoadMonitors()
 	notifiers := config.LoadNotifiers()
 
-    consoleWriter := &writer.ConsoleWriter{}
+	consoleWriter := &writer.ConsoleWriter{}
 
 	watcher := monitor.Watcher{
 		Monitors:  monitors,
 		Notifiers: notifiers,
-        Writers: []io.Writer{
-            consoleWriter,
-        },
+		Writers: []io.Writer{
+			consoleWriter,
+		},
 	}
 	watcher.Watch()
 }

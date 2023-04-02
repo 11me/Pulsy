@@ -1,10 +1,12 @@
 package config
 
 import (
+	"log"
 	"time"
 
 	"github.com/11me/pulsy/monitor"
 	"github.com/11me/pulsy/notifier"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -16,17 +18,38 @@ type monitorConfig struct {
 }
 
 type notifierConfig struct {
-	Name    string `mapstructure:"name"`
-    Options map[string]interface{} `mapstructure:"options"`
+	Name    string                 `mapstructure:"name"`
+	Options map[string]interface{} `mapstructure:"options"`
 }
 
 var monitorsConfig []*monitorConfig
 var notifiersConfig []*notifierConfig
 
 func ReadConfig() error {
-	viper.SetConfigName("config.yaml")
-	viper.AddConfigPath(".")
+	defaultCfgFile := "config.yaml"
+
+	cmd := &cobra.Command{
+		Use:   "pulsy",
+		Short: "Pulsy is an open-source monitoring tool that keeps an eye on your critical systems",
+		RunE: func(cmd *cobra.Command, args []string) error {
+            return nil
+		},
+	}
+
+	var cmdCfgFile string
+	cmd.PersistentFlags().StringVarP(&cmdCfgFile, "config", "c", "", "config file (default is config.yaml)")
+
+	if err := cmd.Execute(); err != nil {
+		return err
+	}
+
 	viper.SetConfigType("yaml")
+	if cmdCfgFile != "" {
+		viper.SetConfigFile(cmdCfgFile)
+	} else {
+        log.Println("Using default", defaultCfgFile)
+		viper.SetConfigFile(defaultCfgFile)
+	}
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -59,10 +82,11 @@ func LoadMonitors() []*monitor.Monitor {
 }
 
 func LoadNotifiers() []notifier.Notifier {
-    notifiers := make([]notifier.Notifier, 0, len(notifiersConfig))
-    for _, n := range notifiersConfig {
-        factory := notifier.MakeNotifierFactory(n.Name)
-        notifiers = append(notifiers, factory(n.Options))
-    }
+	notifiers := make([]notifier.Notifier, 0, len(notifiersConfig))
+	for _, n := range notifiersConfig {
+		factory := notifier.MakeNotifierFactory(n.Name)
+		notifiers = append(notifiers, factory(n.Options))
+	}
 	return notifiers
 }
+
