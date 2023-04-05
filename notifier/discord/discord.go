@@ -36,10 +36,16 @@ type DiscordField struct {
 }
 
 func (d *DiscordNotifier) Notify(m message.Message) error {
+    msgFormat := "%s: %s \n\nStatus: %s \nLatency: %d ms \nURL: %s"
+    msg := fmt.Sprintf(msgFormat,  "❗️Alert", m.Message, m.Status, m.Latency, m.URL)
+    if m.Status == "OK" {
+        msg = fmt.Sprintf(msgFormat,  "✅ OK", m.Message, m.Status, m.Latency, m.URL)
+    }
+
 	payload := &DiscordPayload{
 		Username:  "Pulsy",
 		AvatarURL: "https://img.freepik.com/free-vector/frequency-icon_53876-25527.jpg?w=320",
-		Content:   m.Message,
+		Content:   msg,
 	}
 	bodyBytes, _ := json.Marshal(payload)
 	body := bytes.NewReader(bodyBytes)
@@ -48,12 +54,12 @@ func (d *DiscordNotifier) Notify(m message.Message) error {
 	if err != nil {
 		return err
 	}
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("failed to send notification %s", string(bodyBytes))
+		return fmt.Errorf("failed to send discord notification %s %s", res.Status, string(bodyBytes))
 	}
 	return nil
 }

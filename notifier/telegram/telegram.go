@@ -46,7 +46,7 @@ func (t *TelegramNotifier) Notify(m message.Message) error {
         if err != nil {
             return err
         }
-        return fmt.Errorf("failed to send notification %s", string(bodyBytes))
+        return fmt.Errorf("failed to send telegram notification %s %s", res.Status, string(bodyBytes))
     }
     
 	return nil
