@@ -24,15 +24,20 @@ type telegramPayload struct {
 
 func (t *TelegramNotifier) Notify(m message.Message) error {
     telegramApi := TELEGRAM_API + t.Token + "/sendMessage"
-    messageBytes, _ := json.Marshal(m)
+    msgFormat := "%s: %s \n\nStatus: %s \nLatency: %d ms \nURL: %s"
+    msg := fmt.Sprintf(msgFormat,  "❗️Alert", m.Message, m.Status, m.Latency, m.URL)
+    if m.Status == "OK" {
+        msg = fmt.Sprintf(msgFormat,  "✅ OK", m.Message, m.Status, m.Latency, m.URL)
+    }
+
     payload := telegramPayload{
         ChatID: t.ChatID,
-        Text: string(messageBytes),
+        Text: string(msg),
     }
-    b, _ := json.Marshal(&payload)
-    bReader := bytes.NewReader(b)
+    payloadBytes, _ := json.Marshal(&payload)
+    payloadBytesReader := bytes.NewReader(payloadBytes)
 
-    res, err := http.Post(telegramApi, "application/json", bReader)
+    res, err := http.Post(telegramApi, "application/json", payloadBytesReader)
     if err != nil {
         return err
     }

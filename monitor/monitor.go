@@ -96,7 +96,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
         // do not bombard the service with requests
         // give it a breath
         if lastState == ERROR || lastState == PENDING {
-            time.Sleep(time.Second * 3)
+            time.Sleep(m.Interval)
         }
 
 		if err != nil {
@@ -108,7 +108,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 				URL:       m.URL,
 				Message:   err.Error(),
 			}
-			messageBytes, _ := json.Marshal(&msg)
+			msgBytes, _ := json.Marshal(&msg)
 			if retryCounter > m.Retry {
 				m.state = ERROR
 				if lastState != ERROR {
@@ -118,7 +118,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 				m.state = PENDING
 			}
 
-			w.callWriters(messageBytes)
+			w.callWriters(msgBytes)
 			continue
 		}
 
@@ -131,7 +131,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 				URL:       m.URL,
 				Message:   res.Status,
 			}
-			messageBytes, _ := json.Marshal(&msg)
+			msgBytes, _ := json.Marshal(&msg)
 			if retryCounter > m.Retry {
 				m.state = ERROR
 				if lastState != ERROR {
@@ -140,7 +140,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 			} else {
 				m.state = PENDING
 			}
-			w.callWriters(messageBytes)
+			w.callWriters(msgBytes)
 			continue
 		}
 		retryCounter = 0
@@ -158,7 +158,7 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 		}
 		w.callWriters(msgBytes)
 
-		<-time.Tick(m.Interval)
+        time.Sleep(m.Interval)
 	}
 }
 
