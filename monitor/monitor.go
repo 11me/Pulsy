@@ -1,17 +1,18 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"time"
 
-	"github.com/11me/pulsy/notifier"
 	"github.com/11me/pulsy/message"
+	"github.com/11me/pulsy/notifier"
+	"github.com/11me/pulsy/writer"
 )
 
 type state int
@@ -36,7 +37,6 @@ func (s state) String() string {
 	}
 }
 
-
 type Monitor struct {
 	URL      string
 	Timeout  time.Duration
@@ -48,24 +48,28 @@ type Monitor struct {
 }
 
 type Watcher struct {
-	Monitors  []*Monitor
-	Notifiers []notifier.Notifier
-	Writers   []io.Writer
-	done      chan struct{}
-	wg        *sync.WaitGroup
+	Monitors      []*Monitor
+	Notifiers     []notifier.Notifier
+	Writers       []writer.Writer
+	ctx           context.Context
+	ctxCancelFunc context.CancelFunc
+	wg            *sync.WaitGroup
 }
 
 func (w *Watcher) Watch() {
+	ctx, cancel := context.WithCancel(context.Background())
+	w.ctx = ctx
+	w.ctxCancelFunc = cancel
+
 	w.wg = &sync.WaitGroup{}
 	defer w.wg.Wait()
 
 	go w.listenForInterrupt()
 
 	if w.Writers == nil {
-		w.Writers[0] = os.Stdout
+		w.Writers[0] = &writer.ConsoleWriter{}
 	}
 
-	w.done = make(chan struct{})
 	for _, m := range w.Monitors {
 		w.wg.Add(1)
 		go w.watchMonitor(m)
@@ -79,14 +83,14 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 	client := http.Client{
 		Timeout: m.Timeout,
 	}
-    defer func() {
-        if r := recover(); r != nil {
-            fmt.Fprintf(os.Stdout, "[RECOVER]: %v\n", r)
-            fmt.Fprintf(os.Stdout, "[RECOVER]: %s: %v\n", "restarting the monitor", m)
-            w.wg.Add(1)
-            go w.watchMonitor(m)
-        }
-    }()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stdout, "[RECOVER]: %v\n", r)
+			fmt.Fprintf(os.Stdout, "[RECOVER]: %s: %v\n", "restarting the monitor", m)
+			w.wg.Add(1)
+			go w.watchMonitor(m)
+		}
+	}()
 	defer w.wg.Done()
 	for {
 
@@ -99,12 +103,12 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 		tElapsed := time.Since(tStart)
 
 		lastState := m.state
-        // if in the last state we encounter an error
-        // do not bombard the service with requests
-        // give it a breath
-        if lastState == ERROR || lastState == PENDING {
-            time.Sleep(m.Interval)
-        }
+		// if in the last state we encounter an error
+		// do not bombard the service with requests
+		// give it a breath
+		if lastState == ERROR || lastState == PENDING {
+			time.Sleep(m.Interval)
+		}
 
 		if err != nil {
 			retryCounter++
@@ -165,13 +169,13 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 		}
 		w.callWriters(msgBytes)
 
-        time.Sleep(m.Interval)
+		time.Sleep(m.Interval)
 	}
 }
 
 func (w *Watcher) isDone() bool {
 	select {
-	case <-w.done:
+	case <-w.ctx.Done():
 		return true
 	default:
 		return false
@@ -196,11 +200,11 @@ func (w *Watcher) callNotifiers(m message.Message) {
 
 func (w *Watcher) callWriters(message []byte) {
 	for _, writer := range w.Writers {
-		writer.Write(message)
+		go writer.Write(w.ctx, message)
 	}
 }
 
 func (w *Watcher) Stop() {
-	close(w.done)
+    w.ctxCancelFunc()
 	w.wg.Wait()
 }
