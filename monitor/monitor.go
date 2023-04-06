@@ -79,7 +79,14 @@ func (w *Watcher) watchMonitor(m *Monitor) {
 	client := http.Client{
 		Timeout: m.Timeout,
 	}
-
+    defer func() {
+        if r := recover(); r != nil {
+            fmt.Fprintf(os.Stdout, "[RECOVER]: %v\n", r)
+            fmt.Fprintf(os.Stdout, "[RECOVER]: %s: %v\n", "restarting the monitor", m)
+            w.wg.Add(1)
+            go w.watchMonitor(m)
+        }
+    }()
 	defer w.wg.Done()
 	for {
 
